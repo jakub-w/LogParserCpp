@@ -1,0 +1,30 @@
+#+BEGIN_SRC sql
+  create table .lines( id INT NOT NULL AUTO_INCREMENT,
+                       date DATETIME NOT NULL,
+                       type VARCHAR(32) NOT NULL,
+                       text TEXT CHARACTER SET utf8,
+                       name VARCHAR(64) CHARACTER SET utf8,
+                       PRIMARY KEY ( id ) );
+#+END_SRC
+
+#+BEGIN_SRC sql
+  LOAD DATA LOCAL INFILE
+       '/data/lampilelo/Programming/LogParse/builddir/temp_file.csv'
+       INTO TABLE scratch.lines2
+       FIELDS TERMINATED BY ',' ENCLOSED BY '\''
+       LINES TERMINATED BY '\n' (date, type, text, name);
+#+END_SRC
+
+[[https://archive.fosdem.org/2018/schedule/event/web_development_in_c/attachments/slides/2443/export/events/attachments/web_development_in_c/slides/2443/Roel_Standaert___Introduction_to_Wt_4___FOSDEM2018.pdf][Wt with bootstrap]]
+
+* To Do
+** DONE Year heuristic :ARCHIVE:
+CLOSED: [2018-09-26 śro 16:45]
+Logs have only month and day in the date. I need to add a year so if we sort by date, the lines from different years won't be jumbled up.
+** TODO Concurrency?
+** TODO Save all Undefined lines with a writer and then load it again and parse for emote
+Then revise comment on [[file:LineParser.h::static%20bool%20ParseFile(const%20std::string&%20file_path,][LineParser::ParseFile()]] (specifically Warning)
+
+*OR*
+I should maybe write them to a temp file because of encapsulation rule.
+** TODO Progress bar

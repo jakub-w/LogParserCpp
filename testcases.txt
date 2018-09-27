@@ -1,0 +1,81 @@
+To SomeDrek-MeRealm: this is. some,/ messAGE*>12$
+To SomeDrek: this is. some,/ messAGE*>12$
+SomeDrek-MeRealm whispers: może stad że wszyscy inni sa
+SomeDrek whispers: może stąd że wszyscy inni sa ęółśćźżń
+
+|Hchannel:raid|h[Raid]|h Selane: Caerthir, Aeltharian, trzyma
+|Hchannel:RAID|h[Raid]|h Selane: Caerthir, Aeltharian, trzyma
+|Hchannel:Raid|h[Raid]|h Selane: Caerthir, Aeltharian, trzyma
+Legacy Raid Difficulty set to 10 Player.
+Raid Difficulty set to 10 Player.
+Милэлса-Голдринн has left the raid group.
+Syslei-DunModr has joined the raid group.
+|Hchannel:raid|h[Raid Leader]|h Aeltharian: Pffm.
+[Raid Warning] Lìandra-Outland: WAIT FOR THE DAMN 2 TOWE
+
+Kerrin joins the party.
+Kerrin leaves the party.
+Kerrin has invited you to join a group.
+|Hchannel:Party|h[Party]|h Attan: No wiec planujemy
+Your group has been disbanded.
+Dungeon Difficulty set to 5 Player (Heroic).
+Dungeon Difficulty set to 5 Player.
+You have invited Thorvald to join your group.
+Party converted to Raid
+Kaizoku is already in a group.
+|Hchannel:party|h[Party Leader]|h : Najlepiej dzis wieczorem.
+You leave the group.
+Oroe is now the group leader.
+
+Finky says: A jak wygladal?
+
+Kaizoku yells: Ktos chce sie napic?!
+
+|Hchannel:o|h[Officer]|h Ceiren: tu ziom
+|Hchannel:o|h[officer]|h Ceiren: tu ziom
+|Hchannel:o|h[OFFICER]|h Ceiren: tu ziom
+
+|Hchannel:Guild|h[Guild]|h Saevron: najwyzej dojda w trakcie
+
+Looting changed to Group Loot.
+Loot threshold set to Uncommon.
+You receive loot: Runed Saronite Plate.
+Geril receives loot: Super Healing Potion.
+Your share of the loot is 26 Silver, 80 Copper.
+You loot 1 Silver, 32 Copper
+
+Cennes has earned the achievement Explore The Barrens!
+
+Kerrin is not in your instance.
+You are now saved to this instance
+|Hchannel:INSTANCE_CHAT|h[Instance]|h Ùberdøb-Stormrage: dont do that påls
+|Hchannel:INSTANCE_CHAT|h[Instance Leader]|h Grothil-ArgentDawn: thanks!
+Hazbuk-Bloodhoof has left the instance group.
+Unmindful-GrimBatol has joined the instance group.
+Varagoth-Silvermoon has joined the battle
+
+Greed Roll - 25 for Keleseth's Blade of Evocation by Rogrim
+Need Roll - 13 for Vrykul Shackles by Geril
+Geril won: Vrykul Shackles
+Mirkle has selected Need for: Vrykul Shackles
+Sylom has selected Greed for: Vrykul Shackles
+You have selected Greed for: Vrykul Shackles
+You have selected Need for: Ominous Dagger of the Elder
+Torhill rolls 39 (1-100)
+
+[5. iron] Rahgar joined channel.
+[7. xtensionxtooltip2] Gerric-RedemptorHominis: RPB1~CSCAN~32
+[5. iron] Muraadin-RedemptorHominis left channel.
+[4. Noir] Finky-RedemptorHominis: w tym wdzianku wygladas
+[1. General] Vanu: Could someone doing the storm drake assault
+[2. Trade] Eowale: Alt-F4
+[3. LocalDefense] :
+[4. LookingForGroup] Nhilila-ArgentDawn: Shut up mercy
+
+You have learned a new ability: Shield Charge.
+Malakstrasz leveled you up to (100).
+Your skill in All - Specializations has increased to 500.
+You have gained the Plate Mail skill.
+You have added the mount Teal Kodo to your collection.
+Bambo has gone offline.
+Bambo has come online

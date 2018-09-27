@@ -1,0 +1,22 @@
+{
+  "Regex": {
+    "Achievement": "^(\\S+) has earned the achievement",
+    "GenericChat": "^\\[\\d+\\. [\\w-]+\\] ([^\\s:]+)",
+    "Guild": "^\\|Hchannel:(?:Guild|GUILD|guild)\\S* (\\S+):|^(\\S+) invites you to join ",
+    "Instance": "^\\|Hchannel:INSTANCE_CHAT\\|\\h\\[Instance(?: Leader)?\\]\\|h (\\S+):|^(\\S+) is not in your instance.|^You are now saved to this instance|^([\\S-]+) has (?:joined|left) the (?:instance group.|battle)",
+    "Loot": "^Loot(?:ing)?\\ |^You(?: receive)? loot:?|^Your share of the loot is|^(\\S+) receives loot: ",
+    "Officer": "^\\|Hchannel:o\\|\\S+ (\\S+)",
+    "Party": "\\|Hchannel:(?:PARTY|Party|party)\\|\\S+ (\\S+):|^Party|^Dungeon Difficulty set to|^(\\S+) \\w+ invited \\w+ to join \\w+ group.|^(\\S+) \\w+ the party.|^Party converted to Raid|^(\\S+) is already in a group.|^Your group has been disbanded.|^You leave the group.|^(\\S+) is now the group leader.|^(\\S+) declines your group invitation.",
+    "Raid": "^\\|Hchannel:(?:raid|RAID|Raid)\\|h\\[Raid(?: Leader)?\\]\\|h (\\S+):|(?:Legacy )?Raid Difficulty set to|^(\\S+) (?:has|have) (?:left|joined) (?:the|a) raid group|^\\[Raid Warning\\] (\\S+):",
+    "Roll": "^(\\S+) rolls \\d+ \\(\\d+-\\d+\\)|^(?:Greed|Need) Roll.*by (\\S+)|^(?:You|(\\S+)) (?:has|have) selected (?:Greed|Need) for:|^(\\S+) won: ",
+    "Say": "^(\\S+) says:",
+    "System": "^You have (?:learned|gained)|^Your pet has learned|[\\w-]+ has come online.|^[\\w-]+ has gone offline\\.|^Your skill in [\\w -]+ has increased|^You have added.*to your collection\\.|has been added to your Toy Box\\.|has been added to your pet journal!|.*is dismissed.$|^You receive item: |^You died.|^You have requested to trade with|^[\\w-]+ leveled you up to |^You are no(?:w| longer) (?:Away|rested)|^You (?:gain|give|create:) |^You are (?:being )?summon",
+      "Whisper": "To (\\S+):|(\\S+) whispers:",
+      "Yell": "^(\\S+) yells:",
+      "CustomChat": "$a",
+      "GeneralChat": "$a"
+  },
+  "Regex_emote": {
+    "NotFollowedBy": "^(?!.*has gone offline\\.$|.*has come online\\.$|.*added to friends\\.$|.*removed from friends list\\.$)"
+  }
+}
