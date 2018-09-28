@@ -17,11 +17,34 @@
 
 [[https://archive.fosdem.org/2018/schedule/event/web_development_in_c/attachments/slides/2443/export/events/attachments/web_development_in_c/slides/2443/Roel_Standaert___Introduction_to_Wt_4___FOSDEM2018.pdf][Wt with bootstrap]]
 
+* Threading in LineParser::ParseFile
+Since year heuristic should be very quick, we could delegate ParseLine to multiple threads that would add parsed lines to a std::unordered_map with key being line number. Another running thread would check sequentially the map and check if the year changed, and then modify it in every line after that and call a writer asynchronously (that would require the writer to be thread-safe) or non-asynchronously.
+
+Map-parsing thread could block other threads from writing to a map so if it would be slower than parsing threads, we wouldn't have a big backlog of lines on the stack. Maybe this blocking behavior should be a switchable option or determined in the runtime? Maybe we could block parsing threads if the map contains more items than some constant value?
+
+Map-parsing thread would wait() if there were no lines in the map. Line-parsing threads would notify it with std::condition_variable that it has work to do.
+If the line number it waits for is not in the map, it would wait() longer.
+I *MUST* ensure that lines are counted correctly. *AND WRITE A DOC*
+
+
+Names set could be thread_local and merged with the rest. Also it could be unordered_set for faster lookup and save, as it doesn't need to be sorted.
+
+Name parsing could be done asynchronously in the main thread.
+
+Undefined lines should be passed to a map-parsing thread so the year would be added and only then put aside.
+
 * To Do
 ** DONE Year heuristic :ARCHIVE:
 CLOSED: [2018-09-26 śro 16:45]
 Logs have only month and day in the date. I need to add a year so if we sort by date, the lines from different years won't be jumbled up.
-** TODO Concurrency?
+** IN-PROGRESS Concurrency?
+*** DONE Create LineParser::ParseNextLine() to use as a thread
+CLOSED: [2018-09-28 pią 17:41]
+*** TODO Rename ParseNextLine() to ParseLinesAsynchronously() and add the thread loop.
+*** TODO Create a worker thread function for more processing on a map of lines
+- Year heuristics
+- Pushing undefined lines to a set for emote heuristics
+- Saving lines with a LineWriter
 ** TODO Save all Undefined lines with a writer and then load it again and parse for emote
 Then revise comment on [[file:LineParser.h::static%20bool%20ParseFile(const%20std::string&%20file_path,][LineParser::ParseFile()]] (specifically Warning)
 
