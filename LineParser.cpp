@@ -5,7 +5,9 @@
 #include <iostream>
 #include <iomanip>
 #include <map>
-#include <set>
+#include <mutex>
+#include <thread>
+#include <unordered_set>
 #include <vector>
 
 #include "rapidjson/document.h"
@@ -116,60 +118,115 @@ bool LineParser::ParseFile(const std::string& file_path,
     throw std::logic_error(std::string("In function '") + __FUNCTION__ +
 			   std::string("': Call LineParser::Initialize() first."));
 
-  std::ifstream filestream(file_path);
-  std::shared_ptr<Line> output_line;
-  std::vector<std::shared_ptr<Line>> undefined_type_lines;
-  std::set<std::string> names;
-  std::shared_ptr<Line> last_line{new Line()};
-  // last_line->date = {0};
-  for (std::string line; std::getline(filestream, line);) {
-    output_line = LineParser::ParseLine(line);
-    if (nullptr == output_line) continue;
+  // std::shared_ptr<Line> output_line; // thread_local
+  // std::shared_ptr<Line> last_line{new Line()}; // specialized thread
 
-    names.insert(output_line->name);
+  // NEW STUFF
 
-    // if day is lower than before and month is not greater, or if month
-    // is lower, we can assume that the year changed
-    if ((output_line->date.tm_mday < last_line->date.tm_mday &&
-         output_line->date.tm_mon <= last_line->date.tm_mon)
-        || (output_line->date.tm_mon < last_line->date.tm_mon)){
-      output_line->date.tm_year = last_line->date.tm_year + 1;
-    } else {
-      output_line->date.tm_year = last_line->date.tm_year;
-    }
-    last_line = output_line;
+  ParsingThreadVars thread_vars;
+  thread_vars.ifstrm.open(file_path);
 
-    if ("Undefined" == output_line->type) {
-      undefined_type_lines.push_back(std::move(output_line));
-    } else {
-      try {
-        line_writer->WriteLine(*output_line);
-      } catch (std::exception& e) {
-        std::cerr << e.what() << std::endl;
-      }
-    }
-  }
-  names.insert("You");
-  // remove magic strings that are not names
-  names.erase("%s");
-  names.erase("");
+  MapThreadVars map_thread_vars;
+
+  std::thread t1(ParseNextLine, &thread_vars, &map_thread_vars);
+  // END OF NEW STUFF
+
+  // for (std::string line; std::getline(filestream, line);) {
+  //   output_line = LineParser::ParseLine(line);
+  //   if (nullptr == output_line) continue;
+
+  //   // names.insert(output_line->name);
+
+  //   // if day is lower than before and month is not greater, or if month
+  //   // is lower, we can assume that the year changed
+  //   if ((output_line->date.tm_mday < last_line->date.tm_mday &&
+  //        output_line->date.tm_mon <= last_line->date.tm_mon)
+  //       || (output_line->date.tm_mon < last_line->date.tm_mon)){
+  //     output_line->date.tm_year = last_line->date.tm_year + 1;
+  //   } else {
+  //     output_line->date.tm_year = last_line->date.tm_year;
+  //   }
+  //   last_line = output_line;
+
+  //   if ("Undefined" == output_line->type) {
+  //     undefined_type_lines.push_back(std::move(output_line));
+  //   } else {
+  //     try {
+  //       line_writer->WriteLine(*output_line);
+  //     } catch (std::exception& e) {
+  //       std::cerr << e.what() << std::endl;
+  //     }
+  //   }
+  // }
+  // names.insert("You");
+  // // remove magic strings that are not names
+  // names.erase("%s");
+  // names.erase("");
 
   // check if name existing in names set is the first word of line->text
   // if so, it is an emote
-  std::string name;
-  for (auto& line : undefined_type_lines) {
-    name = line->text.substr(0, line->text.find(' '));
-    if (names.end() != names.find(name)) {
-      line->type = "Emote";
-      line->name = name;
+  // std::string name;
+  // for (auto& line : undefined_type_lines) {
+  //   name = line->text.substr(0, line->text.find(' '));
+  //   if (names.end() != names.find(name)) {
+  //     line->type = "Emote";
+  //     line->name = name;
+  //   }
+  //   try {
+  //     line_writer->WriteLine(*line);
+  //   } catch (std::exception& e) {
+  //       std::cerr << e.what() << std::endl;
+  //   }
+  // }
+
+  // line_writer->Flush();
+  return true;
+}
+
+bool LineParser::ParseNextLine(ParsingThreadVars* vars,
+                               MapThreadVars* map_vars) {
+  std::string line;
+  size_t line_num;
+
+  try {
+  // Read line from a file and increment read line count.
+    {
+      std::unique_lock<std::mutex> lck1{vars->ifstrm_mutex,
+                                        std::defer_lock};
+      std::unique_lock<std::mutex> lck2{map_vars->line_count_mutex,
+                                        std::defer_lock};
+      std::lock(lck1, lck2);
+
+      std::getline(vars->ifstrm, line);
+      line_num = ++(map_vars->line_count);
     }
-    try {
-      line_writer->WriteLine(*line);
-    } catch (std::exception& e) {
-        std::cerr << e.what() << std::endl;
+
+    // Parse line
+    std::shared_ptr<Line> parsed_line = ParseLine(line);
+
+    // Put name from parsed line to a name set.
+    {
+      std::lock_guard<std::mutex> lck{vars->names_mutex};
+      vars->names.insert(parsed_line->name);
     }
+
+    // Put the line with its number to a year-heuristic map for more
+    // (sequential, not async) processing.
+    {
+      std::lock_guard<std::mutex> lck{map_vars->line_map_mutex};
+      map_vars->line_map.insert({std::move(line_num),
+                                 std::move(parsed_line)});
+    }
+
+    // Notify a thread that continues parsing lines that there is new line
+    // in the map
+    map_vars->map_cv.notify_all();
+  }
+  catch (std::exception& e) {
+    std::cerr << "In function '" << __PRETTY_FUNCTION__ << "':\n  "
+              << e.what();
+    return false;
   }
 
-  line_writer->Flush();
   return true;
 }
