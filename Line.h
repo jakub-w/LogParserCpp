@@ -5,7 +5,7 @@
 #include "MessageType.h"
 
 struct Line {
-  std::tm date;
+  std::tm date = {0};
   std::string text;
   std::string name;
   /* MessageType* type; */
