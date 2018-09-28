@@ -62,24 +62,18 @@ std::unique_ptr<Line> LineParser::ParseLine(const std::string& line) {
     throw std::logic_error(std::string("In function '") + __FUNCTION__ +
 			   std::string("': Call LineParser::Initialize() first."));
 
-  // TODO: Change it to throw, because someone could dereference nullptr
-  //       and not know why there's segmentation fault
-  // check if starting with date
-  if (false == std::isdigit(line[0])) {
-    std::cout << "WARNING:  Line: '" << line
-	      << "' doesn't start with a date.\n";
-    return nullptr;
-  }
+  // check if starting with a date
+  if (false == std::isdigit(line[0]))
+    throw std::runtime_error(std::string("WARNING:  Line: '") + line +
+                             "' doesn't start with a date.\n");
 
   // Parse date from a line; using ctime because of a bug in c++ version
   auto date = std::tm{};
   auto conversion_result = strptime(line.substr(0, line.find(".")).c_str(),
 				    "%m/%d %H:%M:%S", &date);
-  if (!conversion_result) {
-    std::cout << "WARNING:  Date in a line failed to parse.\n"
-	      << "  " << line;
-    return nullptr;
-  }
+  if (!conversion_result)
+    throw std::runtime_error(
+        std::string("WARNING:  Date in a line failed to parse.\n  ") + line);
 
   // Derive line type based on a regex
   auto text = line.substr(line.find("  ")+2);
