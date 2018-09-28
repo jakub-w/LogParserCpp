@@ -14,30 +14,6 @@
 // #include "LineWriterQtDB.h"
 // #include "LineWriterSqlFile.h"
 
-// NOTE: For reference
-// NOTE: For names, we should create weighted vector also
-void Temp() {
-  std::regex re("(^\\[\\d*\\. .*\\] )");
-  std::regex re_name("\\[[\\w\\s.]*\\] (\\w+)");
-
-  std::ifstream test("WoWChatLog.txt");
-  std::string text;
-  std::smatch results;
-  std::set<std::string> names;
-  for (std::string line; std::getline(test, line);) {
-    text = line.substr(line.find("  ")+2);
-    if (std::regex_search(text, re)) {
-      std::regex_search(text, results, re_name);
-      names.insert(results[1]);
-    }
-  }
-
-  for (auto name : names) {
-    std::cout << name << std::endl;
-    if (name == "") std::cout << "PUSTE\n";
-  }
-}
-
 int main() {
   auto start = std::chrono::high_resolution_clock::now();
   // LineParser::Initialize("regex.json");
