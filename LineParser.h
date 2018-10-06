@@ -32,19 +32,23 @@ class LineParser {
     std::condition_variable map_cv;
   };
 
-  LineParser(){} // disable constructor for a static class
-
   static std::string regex_file_;
 
-  static bool ParseNextLine(ParsingThreadVars* vars,
-                            MapThreadVars* map_vars);
+  static bool ParseLinesAsynchronously(ParsingThreadVars* vars,
+                                       MapThreadVars* map_vars);
 
+  static std::mutex message_types_mutex_;
+  static std::vector<MessageType> message_types_;
 public:
-  static std::vector<MessageType> message_types;
+
+  LineParser() = delete; // disable constructor for a static class
 
   // Must be called before anything else
   static void Initialize(const std::string& regex_file);
-  static std::unique_ptr<Line> ParseLine(const std::string& line);
+
+  static std::unique_ptr<Line>
+  ParseLine(const std::string& line,
+            std::vector<MessageType>& message_types);
 
   // Parses all of the lines in a file_path and writes them to a storage using
   // line_writer.

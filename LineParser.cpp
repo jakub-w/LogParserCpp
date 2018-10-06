@@ -17,12 +17,14 @@
 #include "LineWriterFile.h"
 
 std::string LineParser::regex_file_ = std::string();
-std::vector<MessageType> LineParser::message_types = std::vector<MessageType>();
+std::vector<MessageType> LineParser::message_types_ =
+    std::vector<MessageType>();
+std::mutex LineParser::message_types_mutex_;
 
 void LineParser::Initialize(const std::string& regex_file) {
   if (regex_file == regex_file_) return;
 
-  message_types.clear();
+  message_types_.clear();
 
   // open regex file and load it into rapidjson::Document document.
   std::ifstream regex_stream(regex_file);
@@ -46,7 +48,7 @@ void LineParser::Initialize(const std::string& regex_file) {
     }
 
     try {
-      message_types.push_back({0,
+      message_types_.push_back({0,
 			       it->name.GetString(),
 			       regex});
     } catch (std::regex_error& e) {
@@ -59,7 +61,9 @@ void LineParser::Initialize(const std::string& regex_file) {
 }
 
 
-std::unique_ptr<Line> LineParser::ParseLine(const std::string& line) {
+std::unique_ptr<Line>
+LineParser::ParseLine(const std::string& line,
+                      std::vector<MessageType>& message_types) {
   if (message_types.empty())
     throw std::logic_error(std::string("In function '") + __FUNCTION__ +
 			   std::string("': Call LineParser::Initialize() first."));
@@ -114,7 +118,7 @@ std::unique_ptr<Line> LineParser::ParseLine(const std::string& line) {
 
 bool LineParser::ParseFile(const std::string& file_path,
                            LineWriterInterface* line_writer) {
-  if (message_types.empty())
+  if (message_types_.empty())
     throw std::logic_error(std::string("In function '") + __FUNCTION__ +
 			   std::string("': Call LineParser::Initialize() first."));
 
@@ -128,7 +132,19 @@ bool LineParser::ParseFile(const std::string& file_path,
 
   MapThreadVars map_thread_vars;
 
-  std::thread t1(ParseNextLine, &thread_vars, &map_thread_vars);
+  const int THREAD_COUNT = 4; // TODO: make static or global or something
+  std::array<std::unique_ptr<std::thread>, THREAD_COUNT> parsing_threads;
+  for (uint i = 0; i < THREAD_COUNT; ++i) {
+    parsing_threads[i] =
+        std::make_unique<std::thread>(ParseLinesAsynchronously,
+                                      &thread_vars, &map_thread_vars);
+  }
+
+  // here goes map-processing code
+
+  for (uint i = 0; i < THREAD_COUNT; ++i) {
+    parsing_threads[i]->join();
+  }
   // END OF NEW STUFF
 
   // for (std::string line; std::getline(filestream, line);) {
@@ -183,49 +199,64 @@ bool LineParser::ParseFile(const std::string& file_path,
   return true;
 }
 
-bool LineParser::ParseNextLine(ParsingThreadVars* vars,
-                               MapThreadVars* map_vars) {
+bool LineParser::ParseLinesAsynchronously(ParsingThreadVars* vars,
+                                          MapThreadVars* map_vars) {
   std::string line;
-  size_t line_num;
+  size_t line_num = 0;
 
-  try {
-  // Read line from a file and increment read line count.
-    {
-      std::unique_lock<std::mutex> lck1{vars->ifstrm_mutex,
-                                        std::defer_lock};
-      std::unique_lock<std::mutex> lck2{map_vars->line_count_mutex,
-                                        std::defer_lock};
-      std::lock(lck1, lck2);
-
-      std::getline(vars->ifstrm, line);
-      line_num = ++(map_vars->line_count);
-    }
-
-    // Parse line
-    std::shared_ptr<Line> parsed_line = ParseLine(line);
-
-    // Put name from parsed line to a name set.
-    {
-      std::lock_guard<std::mutex> lck{vars->names_mutex};
-      vars->names.insert(parsed_line->name);
-    }
-
-    // Put the line with its number to a year-heuristic map for more
-    // (sequential, not async) processing.
-    {
-      std::lock_guard<std::mutex> lck{map_vars->line_map_mutex};
-      map_vars->line_map.insert({std::move(line_num),
-                                 std::move(parsed_line)});
-    }
-
-    // Notify a thread that continues parsing lines that there is new line
-    // in the map
-    map_vars->map_cv.notify_all();
+  std::vector<MessageType> message_types;
+  {
+    std::lock_guard<std::mutex> lck{message_types_mutex_};
+    message_types = message_types_;
   }
-  catch (std::exception& e) {
-    std::cerr << "In function '" << __PRETTY_FUNCTION__ << "':\n  "
-              << e.what();
-    return false;
+
+  while (true) {
+    try {
+      // Read line from a file and increment read line count.
+      {
+        std::unique_lock<std::mutex> lck1{vars->ifstrm_mutex,
+                                          std::defer_lock};
+        std::unique_lock<std::mutex> lck2{map_vars->line_count_mutex,
+                                          std::defer_lock};
+        std::lock(lck1, lck2);
+
+        // if nothing was read, break the thread loop
+        if (! std::getline(vars->ifstrm, line)) break;
+        line_num = ++(map_vars->line_count);
+      }
+
+      // Parse line
+      std::shared_ptr<Line> parsed_line = ParseLine(line, message_types);
+
+      // std::stringstream ss;
+      // ss << std::to_string(line_num) + ' ' << std::this_thread::get_id()
+      //    << ' ' + parsed_line->text + "\n";
+      // std::cout << ss.str();
+
+      // Put the name from a parsed line to a name set.
+      {
+        std::lock_guard<std::mutex> lck{vars->names_mutex};
+        vars->names.insert(parsed_line->name);
+      }
+
+      // Put the line with its number to a year-heuristic map for more
+      // (sequential, not async) processing.
+      {
+        std::lock_guard<std::mutex> lck{map_vars->line_map_mutex};
+        map_vars->line_map.insert({std::move(line_num),
+                                   std::move(parsed_line)});
+      }
+
+      // Notify a thread that continues parsing lines that there is new line
+      // in the map
+      map_vars->map_cv.notify_one();
+    }
+    catch (std::exception& e) {
+      std::cerr << "In function '" << __PRETTY_FUNCTION__
+                << "' while parsing line #" << line_num <<":\n  "
+                << e.what();
+      // return false;
+    }
   }
 
   return true;

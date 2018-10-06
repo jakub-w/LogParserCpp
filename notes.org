@@ -18,7 +18,7 @@
 [[https://archive.fosdem.org/2018/schedule/event/web_development_in_c/attachments/slides/2443/export/events/attachments/web_development_in_c/slides/2443/Roel_Standaert___Introduction_to_Wt_4___FOSDEM2018.pdf][Wt with bootstrap]]
 
 * Threading in LineParser::ParseFile
-Since year heuristic should be very quick, we could delegate ParseLine to multiple threads that would add parsed lines to a std::unordered_map with key being line number. Another running thread would check sequentially the map and check if the year changed, and then modify it in every line after that and call a writer asynchronously (that would require the writer to be thread-safe) or non-asynchronously.
+Since year heuristic should be very quick, we could delegate ParseLine to multiple threads that would add parsed lines to a std::unordered_map with key being line number. Another running thread would check sequentially the map and check if the year changed, and then modify it in every line after that and call a writer asynchronously (that would require the writer to be thread-safe) or synchronously.
 
 Map-parsing thread could block other threads from writing to a map so if it would be slower than parsing threads, we wouldn't have a big backlog of lines on the stack. Maybe this blocking behavior should be a switchable option or determined in the runtime? Maybe we could block parsing threads if the map contains more items than some constant value?
 
@@ -37,11 +37,21 @@ Undefined lines should be passed to a map-parsing thread so the year would be ad
 ** DONE Year heuristic :ARCHIVE:
 CLOSED: [2018-09-26 śro 16:45]
 Logs have only month and day in the date. I need to add a year so if we sort by date, the lines from different years won't be jumbled up.
-** IN-PROGRESS Concurrency?
+** IN-PROGRESS Concurrency
 *** DONE Create LineParser::ParseNextLine() to use as a thread
 CLOSED: [2018-09-28 pią 17:41]
-*** TODO Rename ParseNextLine() to ParseLinesAsynchronously() and add the thread loop.
+*** DONE Rename ParseNextLine() to ParseLinesAsynchronously() and add the thread loop.
+CLOSED: [2018-10-06 sob 18:57]
+*** DONE Resolve segmentation fault problem
+CLOSED: [2018-10-06 sob 20:31]
+[[file:LineParser.cpp::for%20(auto&%20message_type%20:%20message_types)%20{][message_types]] vector is not accessed atomically and it causes segmentation fault
+
+Loop iterating over message_types was using references and changing it to copying every MessageType solved the problem. I need to check how much overhead it caused and resolve it definitely.
+
+I think that every thread should have its own MessageType vector. Won't take much space and will resolve the problem.
 *** TODO Create a worker thread function for more processing on a map of lines
+First, I need a way to check whether threads are running or not so we can know when to stop map-processing.
+
 - Year heuristics
 - Pushing undefined lines to a set for emote heuristics
 - Saving lines with a LineWriter

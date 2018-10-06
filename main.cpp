@@ -7,8 +7,9 @@
 #include <chrono>
 #include <thread>
 #include <mutex>
+
 #include "LineParser.h"
-#include "LineWriterDatabase.h"
+// #include "LineWriterDatabase.h"
 #include "LineWriterFile.h"
 #include "LineWriterCout.h"
 // #include "LineWriterQtDB.h"
@@ -39,7 +40,7 @@ int main() {
 
   try {
     // LineWriterDatabase writer("localhost", "root", "", "scratch", "lines");
-    // LineParser::ParseFile("test.txt", &writer);
+    LineParser::ParseFile("test.txt", &writer);
     // LineParser::ParseFile("WoWChatLog.txt", &writer);
     // LineParser::ParseFile("/home/lampilelo/rpg/rh/logs/WoWLogs.txt", &writer);
   // writer.WriteLine(*LineParser::ParseLine("9/12 21:26:02.332  Lel says: 'lskdfj;aslkdfjls;d''k'jfls;kdjf'"));
