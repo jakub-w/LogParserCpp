@@ -49,15 +49,37 @@ CLOSED: [2018-10-06 sob 20:31]
 Loop iterating over message_types was using references and changing it to copying every MessageType solved the problem. I need to check how much overhead it caused and resolve it definitely.
 
 I think that every thread should have its own MessageType vector. Won't take much space and will resolve the problem.
-*** TODO Create a worker thread function for more processing on a map of lines
+*** WAITING Move code for reading lines from a file to the main thread
+It will create std::asyncs with std::condition_variable, and after reading a line from the file it wil notify_one() to process it.
+std::readline() would read a line into the queue from which threads would read and process it.
+
+Some lines parse for very long time which results in overcrowding the map.
+More threads = more overcrowding. With 8 threads, 184090-line file and ~-O2~ compiler setting map length was at most ~4000 but on average it stays around ~1500. This shouldn't be more than 2 MB of RAM usage. So redesigning it may not be necessary.
+
+Reading a file either way (inside or outside of a thread) is blocking.
+*** IN-PROGRESS Create a worker thread function for more processing on a map of lines
 First, I need a way to check whether threads are running or not so we can know when to stop map-processing.
 
-- Year heuristics
-- Pushing undefined lines to a set for emote heuristics
-- Saving lines with a LineWriter
+- [X] Year heuristics
+- [X] Pushing undefined lines to a set for emote heuristics
+- [ ] Saving lines with a LineWriter (add a mutex)
 ** TODO Save all Undefined lines with a writer and then load it again and parse for emote
 Then revise comment on [[file:LineParser.h::static%20bool%20ParseFile(const%20std::string&%20file_path,][LineParser::ParseFile()]] (specifically Warning)
 
 *OR*
 I should maybe write them to a temp file because of encapsulation rule.
+
+_This is necessary because as far as the program is concerned, the file for parsing may be exclusively Undefined lines and 1 mln lines long._
 ** TODO Progress bar
+** TODO Create some way to send messages to STDOUT and STDERR in a thread-safe way
+Sometimes when several threads want to send something to std::cout/err it all gets jumbled up.
+
+Check if replacing:
+#+BEGIN_SRC c++
+  std::cerr << e.what() << std::endl;
+#+END_SRC
+with:
+#+BEGIN_SRC c++
+  std::cerr << std::string(e.what()) + '\n';
+#+END_SRC
+would be enough.

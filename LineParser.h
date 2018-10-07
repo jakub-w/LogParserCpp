@@ -1,6 +1,7 @@
 #ifndef LOGPARSER_LINEPARSER_H
 #define LOGPARSER_LINEPARSER_H
 
+#include <atomic>
 #include <condition_variable>
 #include <fstream>
 #include <memory>
@@ -29,13 +30,22 @@ class LineParser {
     std::unordered_map<size_t, std::shared_ptr<Line>> line_map;
     std::mutex line_map_mutex;
 
+    std::atomic<bool> is_parsing_done = false;
     std::condition_variable map_cv;
   };
 
   static std::string regex_file_;
 
+  // it parses raw lines and saves them into map_vars.line_map for more
+  // processing with ProcessMapVars().
   static bool ParseLinesAsynchronously(ParsingThreadVars* vars,
                                        MapThreadVars* map_vars);
+
+  // 1. deduces if year in consecutive lines has changed
+  // 2. moves Undefined lines to another set for Emote processing
+  // 3. pushes all remaining lines to a LineWriter
+  static void ProcessMapVarsAsync(MapThreadVars* map_vars,
+                                  LineWriterInterface* line_writer);
 
   static std::mutex message_types_mutex_;
   static std::vector<MessageType> message_types_;

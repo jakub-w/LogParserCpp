@@ -1,6 +1,7 @@
 #include "LineParser.h"
 
 #include <algorithm>
+#include <future>
 #include <fstream>
 #include <iostream>
 #include <iomanip>
@@ -132,19 +133,28 @@ bool LineParser::ParseFile(const std::string& file_path,
 
   MapThreadVars map_thread_vars;
 
-  const int THREAD_COUNT = 4; // TODO: make static or global or something
-  std::array<std::unique_ptr<std::thread>, THREAD_COUNT> parsing_threads;
+  const int THREAD_COUNT = 8; // TODO: make static or global or something
+
+  std::array<std::future<bool>, THREAD_COUNT> parsing_thread_futures;
   for (uint i = 0; i < THREAD_COUNT; ++i) {
-    parsing_threads[i] =
-        std::make_unique<std::thread>(ParseLinesAsynchronously,
-                                      &thread_vars, &map_thread_vars);
+    parsing_thread_futures[i] = std::async(ParseLinesAsynchronously,
+                                           &thread_vars, &map_thread_vars);
   }
 
-  // here goes map-processing code
+  // here goes map-processing thread creation
+  std::thread map_thread(ProcessMapVarsAsync, &map_thread_vars, line_writer);
 
   for (uint i = 0; i < THREAD_COUNT; ++i) {
-    parsing_threads[i]->join();
+    parsing_thread_futures[i].wait();
   }
+
+  // notify the map-processing thread that it can exit
+  map_thread_vars.is_parsing_done.store(true);
+  map_thread.join();
+
+  std::cout << "\nFinished\n";
+
+
   // END OF NEW STUFF
 
   // for (std::string line; std::getline(filestream, line);) {
@@ -204,6 +214,7 @@ bool LineParser::ParseLinesAsynchronously(ParsingThreadVars* vars,
   std::string line;
   size_t line_num = 0;
 
+  // copy message_types_ to prevent conflicts with other threads
   std::vector<MessageType> message_types;
   {
     std::lock_guard<std::mutex> lck{message_types_mutex_};
@@ -225,8 +236,18 @@ bool LineParser::ParseLinesAsynchronously(ParsingThreadVars* vars,
         line_num = ++(map_vars->line_count);
       }
 
+      // std::stringstream ss;
+      // ss << std::string("Thread ") << std::this_thread::get_id()
+      //    << " Parsing line " << line_num << std::endl;
+      // std::cout << ss.str();
+
       // Parse line
       std::shared_ptr<Line> parsed_line = ParseLine(line, message_types);
+
+      // ss.str(std::string());
+      // ss << std::string("Thread ") << std::this_thread::get_id()
+      //    << " Parsed line " << line_num << std::endl;
+      // std::cout << ss.str();
 
       // std::stringstream ss;
       // ss << std::to_string(line_num) + ' ' << std::this_thread::get_id()
@@ -239,12 +260,17 @@ bool LineParser::ParseLinesAsynchronously(ParsingThreadVars* vars,
         vars->names.insert(parsed_line->name);
       }
 
+      // ss.str(std::string());
+      // ss << std::string("Thread ") << std::this_thread::get_id()
+      //    << " blocking line_map, saving line " << line_num << std::endl;
       // Put the line with its number to a year-heuristic map for more
       // (sequential, not async) processing.
       {
         std::lock_guard<std::mutex> lck{map_vars->line_map_mutex};
         map_vars->line_map.insert({std::move(line_num),
                                    std::move(parsed_line)});
+        // std::cout << "Map length: " << map_vars->line_map.size() << std::endl;
+        // std::cout << ss.str();
       }
 
       // Notify a thread that continues parsing lines that there is new line
@@ -252,7 +278,7 @@ bool LineParser::ParseLinesAsynchronously(ParsingThreadVars* vars,
       map_vars->map_cv.notify_one();
     }
     catch (std::exception& e) {
-      std::cerr << "In function '" << __PRETTY_FUNCTION__
+      std::cerr << "In function '" << __FUNCTION__
                 << "' while parsing line #" << line_num <<":\n  "
                 << e.what();
       // return false;
@@ -260,4 +286,75 @@ bool LineParser::ParseLinesAsynchronously(ParsingThreadVars* vars,
   }
 
   return true;
+}
+
+
+void LineParser::ProcessMapVarsAsync(MapThreadVars* map_vars,
+                                     LineWriterInterface* line_writer) {
+  size_t max_map_len = 0;
+
+  size_t current_line_num = 1;
+  std::unordered_map<size_t, std::shared_ptr<Line>>::iterator
+      current_line_it;
+  std::shared_ptr<Line> current_line, previous_line{new Line()};
+  std::vector<std::shared_ptr<Line>> undefined_type_lines;
+
+  // thread loop
+  // FIXME: it exits whenever parsing threads are done, not checking if
+  //        line_map is empty or not.
+  while (false == map_vars->is_parsing_done.load()) {
+    {
+      std::lock_guard<std::mutex> lck(map_vars->line_map_mutex);
+
+      // check if the next line is in the map, and continue if not
+      if (map_vars->line_map.end() ==
+          (current_line_it = map_vars->line_map.find(current_line_num))) {
+        continue;
+      }
+      max_map_len = std::max(max_map_len, map_vars->line_map.size());
+    }
+
+    // found line with number == current_line_num, so we can already
+    // increment it for the next iteration
+    ++current_line_num;
+    // std::cout << "Waiting for line: " << current_line_num << std::endl;
+
+    // operating on lines that are already in the map is safe because
+    // parsing threads only store them, nothing aside this function modifies
+    // them
+    current_line = (*current_line_it).second;
+
+    // Deduce year:
+    // if the day is lower than before and month is not greater, or if month
+    // is lower, we can assume that the year changed
+    if ((current_line->date.tm_mday < previous_line->date.tm_mday &&
+         current_line->date.tm_mon <= previous_line->date.tm_mon)
+        || (current_line->date.tm_mon < previous_line->date.tm_mon)){
+      current_line->date.tm_year = previous_line->date.tm_year + 1;
+    } else {
+      current_line->date.tm_year = previous_line->date.tm_year;
+    }
+    previous_line = current_line;
+
+    // Move Undefined lines to undefined_type_lines
+    // Write the rest with the line_writer
+    if ("Undefined" == current_line->type)
+      undefined_type_lines.push_back(current_line);
+    else
+      try {
+        // line_writer->WriteLine(*current_line);
+      } catch (std::exception& e) {
+        std::cerr << e.what() << std::endl;
+      }
+
+    // Remove current_line from the line_map to free memory.
+    // current_line, as a std::shared_ptr, won't be destroyed
+    {
+      std::lock_guard<std::mutex> lck(map_vars->line_map_mutex);
+      map_vars->line_map.erase(current_line_it);
+    }
+  }
+
+  line_writer->Flush();
+  std::cout << "Max map length: " << max_map_len << std::endl;
 }
