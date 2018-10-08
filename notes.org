@@ -33,6 +33,25 @@ Name parsing could be done asynchronously in the main thread.
 
 Undefined lines should be passed to a map-parsing thread so the year would be added and only then put aside.
 
+* Performance
+Some lines parse for very long time which results in overcrowding the map.
+More threads = more overcrowding. With 8 threads, 184090-line file, no LineWriter and ~-O2~ compiler setting, map length was at most ~4000 but on average it stays around ~1500.
+
+Depending on how long LineWriter::WriteLine() executes, the map will be longer and longer.
+If it's slower than LineWriter::ParseLine() - multiple threads won't be of any help and only the burden that enlarges memory consumption.
+
+- LineWriterDatabase (184090-line file):
+    a) When using LineWriterDatabase and only 1 thread, operation takes 10s and max map length is ~2k.
+    b) When using LineWriterDatabase and 2 threads, operation takes 5s and max map length is ~15k.
+  More threads hardly improve anything.
+
+** Speculation
+It seems like the bottleneck won't be parsing lines, but writing with a LineWriter. It's sequential so multithreading won't help anything if LineWriter won't be made asynchronous.
+
+LineWriterDatabase probably can be improved by multithreading in MySQL library.
+
+I need to think about the cases for LineWriters when they can be made asynchronous (I guess, aside from writing to a database it's no use, but I think we want to write to the database only(?)).
+
 * To Do
 ** DONE Year heuristic :ARCHIVE:
 CLOSED: [2018-09-26 śro 16:45]
@@ -52,9 +71,6 @@ I think that every thread should have its own MessageType vector. Won't take muc
 *** WAITING Move code for reading lines from a file to the main thread
 It will create std::asyncs with std::condition_variable, and after reading a line from the file it wil notify_one() to process it.
 std::readline() would read a line into the queue from which threads would read and process it.
-
-Some lines parse for very long time which results in overcrowding the map.
-More threads = more overcrowding. With 8 threads, 184090-line file and ~-O2~ compiler setting map length was at most ~4000 but on average it stays around ~1500. This shouldn't be more than 2 MB of RAM usage. So redesigning it may not be necessary.
 
 Reading a file either way (inside or outside of a thread) is blocking.
 *** IN-PROGRESS Create a worker thread function for more processing on a map of lines

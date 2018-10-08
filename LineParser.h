@@ -31,7 +31,6 @@ class LineParser {
     std::mutex line_map_mutex;
 
     std::atomic<bool> is_parsing_done = false;
-    std::condition_variable map_cv;
   };
 
   static std::string regex_file_;

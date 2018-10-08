@@ -133,7 +133,7 @@ bool LineParser::ParseFile(const std::string& file_path,
 
   MapThreadVars map_thread_vars;
 
-  const int THREAD_COUNT = 8; // TODO: make static or global or something
+  const int THREAD_COUNT = 4; // TODO: make static or global or something
 
   std::array<std::future<bool>, THREAD_COUNT> parsing_thread_futures;
   for (uint i = 0; i < THREAD_COUNT; ++i) {
@@ -147,6 +147,12 @@ bool LineParser::ParseFile(const std::string& file_path,
   for (uint i = 0; i < THREAD_COUNT; ++i) {
     parsing_thread_futures[i].wait();
   }
+
+  {
+    std::lock_guard<std::mutex> lck(map_thread_vars.line_map_mutex);
+    std::cout << "\nMap length: " << map_thread_vars.line_map.size();
+  }
+  std::cout << "\nParsing threads finished.\n";
 
   // notify the map-processing thread that it can exit
   map_thread_vars.is_parsing_done.store(true);
@@ -221,8 +227,9 @@ bool LineParser::ParseLinesAsynchronously(ParsingThreadVars* vars,
     message_types = message_types_;
   }
 
+  std::shared_ptr<Line> parsed_line;
+
   while (true) {
-    try {
       // Read line from a file and increment read line count.
       {
         std::unique_lock<std::mutex> lck1{vars->ifstrm_mutex,
@@ -241,8 +248,23 @@ bool LineParser::ParseLinesAsynchronously(ParsingThreadVars* vars,
       //    << " Parsing line " << line_num << std::endl;
       // std::cout << ss.str();
 
-      // Parse line
-      std::shared_ptr<Line> parsed_line = ParseLine(line, message_types);
+      try {
+        // Parse line
+        parsed_line = ParseLine(line, message_types);
+
+        // Put the name from a parsed line to a name set.
+        {
+          std::lock_guard<std::mutex> lck{vars->names_mutex};
+          vars->names.insert(parsed_line->name);
+        }
+      } catch (std::exception& e) {
+        std::cerr << "In function '" << __FUNCTION__
+                  << "' while parsing line #" << line_num <<":\n  "
+                  << e.what();
+        // despite it couldn't parse, it'll add empty line to the map
+        // so ProcessMapVarsAsync() wouldn't end up in the infinite loop
+        parsed_line = nullptr;
+      }
 
       // ss.str(std::string());
       // ss << std::string("Thread ") << std::this_thread::get_id()
@@ -253,12 +275,6 @@ bool LineParser::ParseLinesAsynchronously(ParsingThreadVars* vars,
       // ss << std::to_string(line_num) + ' ' << std::this_thread::get_id()
       //    << ' ' + parsed_line->text + "\n";
       // std::cout << ss.str();
-
-      // Put the name from a parsed line to a name set.
-      {
-        std::lock_guard<std::mutex> lck{vars->names_mutex};
-        vars->names.insert(parsed_line->name);
-      }
 
       // ss.str(std::string());
       // ss << std::string("Thread ") << std::this_thread::get_id()
@@ -272,17 +288,6 @@ bool LineParser::ParseLinesAsynchronously(ParsingThreadVars* vars,
         // std::cout << "Map length: " << map_vars->line_map.size() << std::endl;
         // std::cout << ss.str();
       }
-
-      // Notify a thread that continues parsing lines that there is new line
-      // in the map
-      map_vars->map_cv.notify_one();
-    }
-    catch (std::exception& e) {
-      std::cerr << "In function '" << __FUNCTION__
-                << "' while parsing line #" << line_num <<":\n  "
-                << e.what();
-      // return false;
-    }
   }
 
   return true;
@@ -300,11 +305,14 @@ void LineParser::ProcessMapVarsAsync(MapThreadVars* map_vars,
   std::vector<std::shared_ptr<Line>> undefined_type_lines;
 
   // thread loop
-  // FIXME: it exits whenever parsing threads are done, not checking if
-  //        line_map is empty or not.
-  while (false == map_vars->is_parsing_done.load()) {
+  while (true) {
     {
       std::lock_guard<std::mutex> lck(map_vars->line_map_mutex);
+      // break thread loop if parsing threads finished their work
+      // and line_map is empty
+      if (map_vars->is_parsing_done.load() &&
+          map_vars->line_map.empty())
+        break;
 
       // check if the next line is in the map, and continue if not
       if (map_vars->line_map.end() ==
@@ -319,10 +327,15 @@ void LineParser::ProcessMapVarsAsync(MapThreadVars* map_vars,
     ++current_line_num;
     // std::cout << "Waiting for line: " << current_line_num << std::endl;
 
-    // operating on lines that are already in the map is safe because
+    // Operating on lines that are already in the map is safe because
     // parsing threads only store them, nothing aside this function modifies
-    // them
-    current_line = (*current_line_it).second;
+    // them.
+    // current_line can be nullptr if it couldn't be parsed
+    if (!(current_line = (*current_line_it).second)) {
+      std::lock_guard<std::mutex> lck(map_vars->line_map_mutex);
+      map_vars->line_map.erase(current_line_it);
+      continue;
+    }
 
     // Deduce year:
     // if the day is lower than before and month is not greater, or if month
@@ -342,7 +355,7 @@ void LineParser::ProcessMapVarsAsync(MapThreadVars* map_vars,
       undefined_type_lines.push_back(current_line);
     else
       try {
-        // line_writer->WriteLine(*current_line);
+        line_writer->WriteLine(*current_line);
       } catch (std::exception& e) {
         std::cerr << e.what() << std::endl;
       }
