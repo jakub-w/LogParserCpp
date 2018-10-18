@@ -79,6 +79,8 @@ First, I need a way to check whether threads are running or not so we can know w
 - [X] Year heuristics
 - [X] Pushing undefined lines to a set for emote heuristics
 - [ ] Saving lines with a LineWriter (add a mutex)
+** TODO Refactor LineWriterDatabase to use smart pointers for C structs
+[[file:~/org/Notes.org::*std::unique_ptr%20and%20C][std::unique_ptr and C]] - relevant note
 ** TODO Save all Undefined lines with a writer and then load it again and parse for emote
 Then revise comment on [[file:LineParser.h::static%20bool%20ParseFile(const%20std::string&%20file_path,][LineParser::ParseFile()]] (specifically Warning)
 
